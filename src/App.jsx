@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Plus, AlertTriangle, X, Loader2, Trash2, FileDown } from "lucide-react";
+import { Plus, AlertTriangle, X, Loader2, Trash2, FileDown, Pencil, BookOpen, ChevronDown } from "lucide-react";
 import { generateBrochurePDF } from "./pdfBrochure";
 
 // ---------------------------------------------------------------------------
-// localStorage helpers (sostituisce window.storage di Claude)
+// localStorage
 // ---------------------------------------------------------------------------
 const LS_KEY = "confronto_polizze_products";
+const LS_TIPO_KEY = "confronto_polizze_tipo";
 
 function lsLoad() {
   try {
@@ -19,6 +20,14 @@ function lsLoad() {
 function lsSave(products) {
   localStorage.setItem(LS_KEY, JSON.stringify(products));
 }
+
+const TIPI_PREDEFINITI = [
+  { sigla: "TCM",  nome: "Temporanea Caso Morte",     desc: "La Temporanea Caso Morte (TCM) garantisce ai beneficiari il pagamento di un capitale in caso di decesso dell'assicurato durante il periodo di copertura. È lo strumento più diretto per proteggere economicamente le persone care da un evento inatteso." },
+  { sigla: "Unit Linked", nome: "Unit Linked",        desc: "Le polizze Unit Linked sono prodotti vita a carattere finanziario il cui rendimento è collegato all'andamento di fondi di investimento. Combinano una componente assicurativa (caso morte) con un investimento in strumenti finanziari." },
+  { sigla: "Vita Intera", nome: "Vita Intera",        desc: "La polizza Vita Intera garantisce il pagamento di un capitale ai beneficiari al momento del decesso dell'assicurato, senza limiti di tempo. Offre una copertura permanente ed è spesso usata per pianificazione successoria." },
+  { sigla: "LTC",  nome: "Long Term Care",            desc: "Le polizze Long Term Care (LTC) coprono il rischio di non autosufficienza, garantendo una rendita o un capitale quando l'assicurato non è più in grado di svolgere autonomamente le attività quotidiane di base." },
+  { sigla: "Altro", nome: "Personalizzato",           desc: "" },
+];
 
 // ---------------------------------------------------------------------------
 // UTILITY
@@ -117,6 +126,13 @@ export default function ConfrontoPolizzeTool() {
     fumatore: "no",
   });
   const [consulente, setConsulente] = useState("");
+  const [tipoPolizza, setTipoPolizza] = useState(() => {
+    try {
+      const raw = localStorage.getItem(LS_TIPO_KEY);
+      return raw ? JSON.parse(raw) : { sigla: "TCM", spiegazione: TIPI_PREDEFINITI[0].desc };
+    } catch { return { sigla: "TCM", spiegazione: TIPI_PREDEFINITI[0].desc }; }
+  });
+  const [editingId, setEditingId] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
@@ -201,6 +217,12 @@ export default function ConfrontoPolizzeTool() {
     setSaving(false);
   }
 
+  function updateTipo(sigla, spiegazione, nomeLibero) {
+    const val = { sigla, spiegazione, nomeLibero: nomeLibero ?? tipoPolizza.nomeLibero };
+    setTipoPolizza(val);
+    localStorage.setItem(LS_TIPO_KEY, JSON.stringify(val));
+  }
+
   function handleDelete(id) {
     if (!window.confirm("Eliminare questo prodotto dal database?")) return;
     const updated = products.filter((p) => p.id !== id);
@@ -208,6 +230,63 @@ export default function ConfrontoPolizzeTool() {
     setProducts(updated);
     if (idA === id) setIdA(updated[0]?.id || "");
     if (idB === id) setIdB(updated[1]?.id || updated[0]?.id || "");
+  }
+
+  function handleEditOpen(id) {
+    const p = products.find((x) => x.id === id);
+    if (!p) return;
+    setNewProduct({
+      nome:          p.nome,
+      compagnia:     p.compagnia,
+      tipoDocumento: p.tipoDocumento || "",
+      capitaleNote:  p.capitaleNote  || "",
+      capitaleMin:   p.capitaleMin   != null ? String(p.capitaleMin) : "",
+      durataNote:    p.durataNote    || "",
+      durataMax:     p.durataMax     != null ? String(p.durataMax)   : "",
+      coperture:     (p.coperture  || []).join("\n"),
+      esclusioni:    (p.esclusioni || []).join("\n"),
+      fiscalita:     p.fiscalita  || "",
+      recesso:       p.recesso    || "",
+      riscatto:      p.riscatto   || "",
+      mancanti:      (p.mancanti  || []).join("\n"),
+    });
+    setEditingId(id);
+    setShowAddForm(false);
+    setFormError("");
+  }
+
+  function handleEditSave(e) {
+    e.preventDefault();
+    setFormError("");
+    if (!newProduct.nome.trim() || !newProduct.compagnia.trim()) {
+      setFormError("Nome e compagnia sono obbligatori.");
+      return;
+    }
+    setSaving(true);
+    const updated = products.map((p) => {
+      if (p.id !== editingId) return p;
+      return {
+        ...p,
+        nome:          newProduct.nome.trim(),
+        compagnia:     newProduct.compagnia.trim(),
+        tipoDocumento: newProduct.tipoDocumento.trim() || "Non specificato",
+        capitaleMin:   newProduct.capitaleMin ? Number(newProduct.capitaleMin) : null,
+        capitaleNote:  newProduct.capitaleNote.trim() || null,
+        durataMax:     newProduct.durataMax ? Number(newProduct.durataMax) : null,
+        durataNote:    newProduct.durataNote.trim() || null,
+        coperture:     newProduct.coperture.split("\n").map((s) => s.trim()).filter(Boolean),
+        esclusioni:    newProduct.esclusioni.split("\n").map((s) => s.trim()).filter(Boolean),
+        fiscalita:     newProduct.fiscalita.trim() || null,
+        recesso:       newProduct.recesso.trim()   || null,
+        riscatto:      newProduct.riscatto.trim()  || null,
+        mancanti:      newProduct.mancanti.split("\n").map((s) => s.trim()).filter(Boolean),
+      };
+    });
+    lsSave(updated);
+    setProducts(updated);
+    setEditingId(null);
+    setNewProduct(emptyForm());
+    setSaving(false);
   }
 
   // -------------------------------------------------------------------------
@@ -235,30 +314,103 @@ export default function ConfrontoPolizzeTool() {
           </p>
         </div>
 
-        {/* SELEZIONE */}
-        {products.length >= 2 ? (
-          <div style={s.grid2}>
-            <ProductSelector
-              label="Prodotto A"
-              value={idA}
-              onChange={setIdA}
-              products={products}
-              onDelete={handleDelete}
-            />
-            <ProductSelector
-              label="Prodotto B"
-              value={idB}
-              onChange={setIdB}
-              products={products}
-              onDelete={handleDelete}
+        {/* TIPO PRODOTTO */}
+        <div style={s.card}>
+          <Eyebrow>Tipo di prodotto confrontato</Eyebrow>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+            {TIPI_PREDEFINITI.map((t) => (
+              <button
+                key={t.sigla}
+                onClick={() => updateTipo(t.sigla, tipoPolizza.sigla === t.sigla ? tipoPolizza.spiegazione : t.desc)}
+                style={{
+                  padding: "5px 14px",
+                  borderRadius: 20,
+                  border: tipoPolizza.sigla === t.sigla ? "none" : "1.5px solid rgba(27,36,32,0.2)",
+                  background: tipoPolizza.sigla === t.sigla ? "#0E2D50" : "transparent",
+                  color: tipoPolizza.sigla === t.sigla ? "#FFFFFF" : "#1B2420",
+                  fontSize: 13,
+                  fontWeight: tipoPolizza.sigla === t.sigla ? 600 : 400,
+                  cursor: "pointer",
+                }}
+              >
+                {t.sigla}
+              </button>
+            ))}
+          </div>
+          {tipoPolizza.sigla === "Altro" && (
+            <div style={{ marginTop: 10 }}>
+              <LabelInput
+                label="Nome tipo prodotto"
+                value={tipoPolizza.nomeLibero || ""}
+                placeholder="es. Rendita, Index Linked..."
+                onChange={(v) => updateTipo("Altro", tipoPolizza.spiegazione, v)}
+              />
+            </div>
+          )}
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 11, color: "rgba(27,36,32,0.6)", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+              <BookOpen size={12} /> Spiegazione (mostrata nella brochure PDF)
+            </div>
+            <textarea
+              value={tipoPolizza.spiegazione}
+              rows={3}
+              onChange={(e) => updateTipo(tipoPolizza.sigla, e.target.value)}
+              placeholder="Descrivi il tipo di polizza per il cliente..."
+              style={{
+                width: "100%", padding: "6px 8px", borderRadius: 6,
+                border: "1px solid rgba(27,36,32,0.2)", background: "#FFFFFF",
+                fontSize: 13, resize: "vertical", outline: "none",
+              }}
             />
           </div>
-        ) : (
-          <div style={s.emptyHint}>
-            Aggiungi almeno due prodotti per avviare il confronto.
-          </div>
-        )}
+        </div>
 
+
+	{products.length === 0 ? (
+	  <div style={s.emptyHint}>
+	    Nessun prodotto salvato. Aggiungine almeno due per avviare il confronto.
+	  </div>
+	) : products.length === 1 ? (
+	  <div style={{ ...s.card, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+	    <div>
+	      <span style={{ fontWeight: 600 }}>{products[0].nome}</span>
+	      <span style={{ color: "rgba(27,36,32,0.5)", marginLeft: 8 }}>{products[0].compagnia}</span>
+	    </div>
+	    <div style={{ display: "flex", gap: 8 }}>
+	      <button
+	        onClick={() => handleEditOpen(products[0].id)}
+	        style={{ background: "none", border: "none", cursor: "pointer", color: "#A6792C", padding: 4 }}
+	      >
+	        <Pencil size={15} />
+	      </button>
+	      <button
+	        onClick={() => handleDelete(products[0].id)}
+	        style={{ background: "none", border: "none", cursor: "pointer", color: "#8B3A2E", padding: 4 }}
+	      >
+	        <Trash2 size={15} />
+	      </button>
+	    </div>
+	  </div>
+	) : (
+	  <div style={s.grid2}>
+	    <ProductSelector
+	      label="Prodotto A"
+	      value={idA}
+	      onChange={setIdA}
+	      products={products}
+	      onDelete={handleDelete}
+	      onEdit={handleEditOpen}
+	    />
+	    <ProductSelector
+	      label="Prodotto B"
+	      value={idB}
+	      onChange={setIdB}
+	      products={products}
+	      onDelete={handleDelete}
+	      onEdit={handleEditOpen}
+	    />
+	  </div>
+)}
         {/* PROFILO CLIENTE */}
         <div style={s.card}>
           <Eyebrow>Profilo cliente (opzionale)</Eyebrow>
@@ -327,6 +479,7 @@ export default function ConfrontoPolizzeTool() {
             prodottoA={prodottoA}
             prodottoB={prodottoB}
             profilo={profilo}
+            tipoPolizza={tipoPolizza}
           />
         )}
 
@@ -334,7 +487,7 @@ export default function ConfrontoPolizzeTool() {
         {prodottoA && prodottoB && (
           <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
             <button
-              onClick={() => generateBrochurePDF({ prodottoA, prodottoB, profilo, consulente })}
+              onClick={() => generateBrochurePDF({ prodottoA, prodottoB, profilo, consulente, tipoPolizza })}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -351,8 +504,53 @@ export default function ConfrontoPolizzeTool() {
               }}
             >
               <FileDown size={16} />
-              Esporta Brochure PDF
+              Esporta PDF
             </button>
+          </div>
+        )}
+
+        {/* MODIFICA PRODOTTO */}
+        {editingId && (
+          <div style={{ marginTop: 24 }}>
+            <form onSubmit={handleEditSave} style={{ ...s.card, borderLeft: "3px solid #A6792C" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <Eyebrow>Modifica prodotto</Eyebrow>
+                <button
+                  type="button"
+                  onClick={() => { setEditingId(null); setNewProduct(emptyForm()); setFormError(""); }}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(27,36,32,0.5)" }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div style={s.grid2}>
+                <LabelInput label="Nome prodotto *" value={newProduct.nome} onChange={(v) => setNewProduct({ ...newProduct, nome: v })} />
+                <LabelInput label="Compagnia *" value={newProduct.compagnia} onChange={(v) => setNewProduct({ ...newProduct, compagnia: v })} />
+                <LabelInput label="Tipo documento" value={newProduct.tipoDocumento} placeholder="es. DIP Vita, brochure..." onChange={(v) => setNewProduct({ ...newProduct, tipoDocumento: v })} />
+                <LabelInput label="Capitale (descrizione)" value={newProduct.capitaleNote} placeholder="es. Libero / Minimo 250.000 €" onChange={(v) => setNewProduct({ ...newProduct, capitaleNote: v })} />
+                <LabelInput label="Capitale minimo (€)" type="number" value={newProduct.capitaleMin} placeholder="es. 250000" onChange={(v) => setNewProduct({ ...newProduct, capitaleMin: v })} />
+                <LabelInput label="Durata (descrizione)" value={newProduct.durataNote} placeholder="es. Da 1 a 25 anni" onChange={(v) => setNewProduct({ ...newProduct, durataNote: v })} />
+                <LabelInput label="Durata massima (anni)" type="number" value={newProduct.durataMax} placeholder="es. 25" onChange={(v) => setNewProduct({ ...newProduct, durataMax: v })} />
+                <LabelInput label="Fiscalità" value={newProduct.fiscalita} onChange={(v) => setNewProduct({ ...newProduct, fiscalita: v })} />
+                <LabelInput label="Recesso" value={newProduct.recesso} onChange={(v) => setNewProduct({ ...newProduct, recesso: v })} />
+                <LabelInput label="Riscatto / Riduzione" value={newProduct.riscatto} onChange={(v) => setNewProduct({ ...newProduct, riscatto: v })} />
+              </div>
+
+              <LabelTextarea label="Coperture (una per riga)" value={newProduct.coperture} onChange={(v) => setNewProduct({ ...newProduct, coperture: v })} />
+              <LabelTextarea label="Esclusioni (una per riga)" value={newProduct.esclusioni} onChange={(v) => setNewProduct({ ...newProduct, esclusioni: v })} />
+              <LabelTextarea label="Dati mancanti / da verificare (uno per riga)" value={newProduct.mancanti} onChange={(v) => setNewProduct({ ...newProduct, mancanti: v })} />
+
+              {formError && (
+                <div style={{ color: "#8B3A2E", fontSize: 13, display: "flex", gap: 6, alignItems: "center", marginTop: 8 }}>
+                  <AlertTriangle size={14} /> {formError}
+                </div>
+              )}
+              <button type="submit" disabled={saving} style={{ ...s.btnPrimary, background: "#A6792C" }}>
+                {saving && <Loader2 size={14} />}
+                Salva modifiche
+              </button>
+            </form>
           </div>
         )}
 
@@ -426,7 +624,7 @@ export default function ConfrontoPolizzeTool() {
 // ---------------------------------------------------------------------------
 // PRODUCT SELECTOR
 // ---------------------------------------------------------------------------
-function ProductSelector({ label, value, onChange, products, onDelete }) {
+function ProductSelector({ label, value, onChange, products, onDelete, onEdit }) {
   const selected = products.find((p) => p.id === value);
   return (
     <div style={{ background: "#FAF7F0", border: "1px solid rgba(27,36,32,0.14)", borderRadius: 10, padding: 16 }}>
@@ -454,13 +652,22 @@ function ProductSelector({ label, value, onChange, products, onDelete }) {
           ))}
         </select>
         {selected && (
-          <button
-            onClick={() => onDelete(selected.id)}
-            title="Elimina prodotto"
-            style={{ background: "none", border: "none", cursor: "pointer", color: "#8B3A2E", padding: 4 }}
-          >
-            <Trash2 size={15} />
-          </button>
+          <>
+            <button
+              onClick={() => onEdit(selected.id)}
+              title="Modifica prodotto"
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#A6792C", padding: 4 }}
+            >
+              <Pencil size={15} />
+            </button>
+            <button
+              onClick={() => onDelete(selected.id)}
+              title="Elimina prodotto"
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#8B3A2E", padding: 4 }}
+            >
+              <Trash2 size={15} />
+            </button>
+          </>
         )}
       </div>
     </div>
@@ -470,7 +677,7 @@ function ProductSelector({ label, value, onChange, products, onDelete }) {
 // ---------------------------------------------------------------------------
 // COMPARISON LEDGER
 // ---------------------------------------------------------------------------
-function ComparisonLedger({ prodottoA, prodottoB, profilo }) {
+function ComparisonLedger({ prodottoA, prodottoB, profilo, tipoPolizza }) {
   const capCompA = capitaleCompatibile(prodottoA, profilo);
   const capCompB = capitaleCompatibile(prodottoB, profilo);
   const durCompA = durataCompatibile(prodottoA, profilo);
@@ -511,10 +718,17 @@ function ComparisonLedger({ prodottoA, prodottoB, profilo }) {
   return (
     <div style={{ background: "#FAF7F0", border: "1px solid rgba(27,36,32,0.14)", borderRadius: 10, overflow: "hidden", marginTop: 24 }}>
       {/* Header */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", padding: "12px 16px", background: "#1B2420" }}>
-        <div />
-        <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#EDE7DA", fontSize: 15 }}>{prodottoA.nome}</div>
-        <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#EDE7DA", fontSize: 15 }}>{prodottoB.nome}</div>
+      <div style={{ background: "#0E2D50", padding: "10px 16px 4px" }}>
+        {tipoPolizza?.sigla && (
+          <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.18em", color: "#ffffff", fontFamily: "'Fraunces', serif", marginBottom: 6 }}>
+            {tipoPolizza.sigla === "Altro" ? (tipoPolizza.nomeLibero || "Polizza") : tipoPolizza.sigla}
+          </div>
+        )}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr" }}>
+          <div />
+          <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#EDE7DA", fontSize: 15 }}>{prodottoA.nome}</div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#EDE7DA", fontSize: 15 }}>{prodottoB.nome}</div>
+        </div>
       </div>
 
       {rows.map((row, i) => (
@@ -625,7 +839,7 @@ function LabelTextarea({ label, value, onChange }) {
 const styles = {
   page: {
     minHeight: "100vh",
-    background: "#EDE7DA",
+    background: "#F7EFD9",
     color: "#1B2420",
     fontFamily: "'Inter', sans-serif",
   },
