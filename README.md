@@ -1,42 +1,70 @@
-# Confronto Polizze TCM · Futuria Assicurazioni
+# Confronto Polizze — Futuria Assicurazioni
 
-Strumento interno per il confronto comparativo tra prodotti assicurativi TCM.
+Strumento interno per confrontare due prodotti assicurativi voce per voce.
+Disponibile online su [confronto-polizze.vercel.app](https://confronto-polizze.vercel.app).
+
+---
 
 ## Requisiti
 
-- Node.js 18 o superiore (verifica con `node -v`)
+- Node.js 18 o superiore (`node -v` per verificare)
 - npm (incluso con Node.js)
 
-## Installazione e avvio
+---
+
+## Avvio in locale
 
 ```bash
-# 1. Entra nella cartella del progetto
 cd confronto-polizze
-
-# 2. Installa le dipendenze (solo la prima volta)
-npm install
-
-# 3. Avvia in locale
+npm install       # solo la prima volta
 npm run dev
 ```
 
-Poi apri il browser su: **http://localhost:5173**
+Apri il browser su `http://localhost:5173`.
+
+---
+
+## Funzionalità
+
+**Gestione prodotti**
+I prodotti assicurativi si aggiungono tramite il form nel sito. Per ogni prodotto si possono specificare: nome, compagnia, tipo documento, capitale, durata, coperture, esclusioni, fiscalità, recesso, riscatto e dati mancanti da verificare. I prodotti salvati si possono modificare o eliminare in qualsiasi momento.
+
+**Tipo di prodotto**
+Prima di avviare il confronto si seleziona il tipo di polizza (TCM, Unit Linked, Vita Intera, LTC, Malattia Grave o personalizzato) e si inserisce una spiegazione destinata al cliente. Questi dati vengono riportati nella brochure PDF.
+
+**Tabella comparativa**
+Con due prodotti selezionati il sito genera automaticamente una tabella voce per voce. Se il profilo cliente è compilato (età, capitale, durata, fumatore), la tabella segnala eventuali incompatibilità — ad esempio un capitale richiesto inferiore al minimo di un prodotto.
+
+**Brochure PDF**
+Il pulsante "Esporta Brochure PDF" genera una singola pagina A4 orizzontale in formato trifold, pronta da stampare e consegnare al cliente. Il PDF include il logo Futuria, i dati dei due prodotti a confronto, la spiegazione del tipo di polizza e i dati eventualmente mancanti da verificare.
+
+---
 
 ## Database
 
-I dati delle polizze vengono salvati nel **localStorage** del browser.
-Rimangono disponibili finché non si cancella la cache del browser.
+I dati vengono salvati nel `localStorage` del browser — ogni utente ha il proprio archivio locale, indipendente dagli altri. I dati persistono finché non si pulisce la cache del browser.
 
-La chiave localStorage usata è: `confronto_polizze_products`
+Chiavi utilizzate:
+- `confronto_polizze_products` — elenco prodotti
+- `confronto_polizze_tipo` — tipo polizza e spiegazione
 
-Per esportare/importare i dati manualmente, dalla console del browser:
+**Azzerare il database (dalla console del browser, F12):**
 ```js
-// Esporta
-copy(localStorage.getItem('confronto_polizze_products'))
+localStorage.removeItem('confronto_polizze_products')
+localStorage.removeItem('confronto_polizze_tipo')
+```
 
-// Importa (incolla il JSON tra le virgolette)
+**Esportare i prodotti salvati:**
+```js
+copy(localStorage.getItem('confronto_polizze_products'))
+```
+
+**Importare prodotti (incolla il JSON tra le virgolette):**
+```js
 localStorage.setItem('confronto_polizze_products', '...')
 ```
+
+---
 
 ## Build per produzione
 
@@ -44,20 +72,18 @@ localStorage.setItem('confronto_polizze_products', '...')
 npm run build
 ```
 
-I file statici finali vengono generati nella cartella `dist/`.
+I file statici vengono generati nella cartella `dist/` e possono essere deployati su qualsiasi hosting statico. Il progetto è già configurato per Vercel — ogni push su `main` aggiorna automaticamente il sito se il repository è collegato.
 
-## Esportazione PDF
+---
 
-Dopo aver selezionato due prodotti clicca **Esporta Brochure PDF** (in basso a destra della tabella).
+## Struttura del progetto
 
-Il PDF generato include:
-- Copertina con header Futuria (colori navy/oro del brand)
-- Profilo cliente se compilato
-- Tabella comparativa completa voce per voce
-- Box dati mancanti / da verificare
-- Footer con contatti Futuria su ogni pagina
+```
+src/
+  App.jsx          — interfaccia principale, logica di stato, localStorage
+  pdfBrochure.js   — generazione brochure PDF con jsPDF
+  index.css        — Tailwind base
+  main.jsx         — entry point React
+```
 
-Il file viene scaricato automaticamente con nome:
-`Futuria_Confronto_ProdottoA_vs_ProdottoB_YYYY-MM-DD.pdf`
-
-La libreria usata è **jsPDF** (già inclusa in `package.json`).
+[Account Telegram](https://t.me/vagabodiamo)
