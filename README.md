@@ -1,5 +1,6 @@
 # Confronto Polizze — Futuria Assicurazioni
 by [Account Telegram](https://t.me/vagabodiamo)
+
 Strumento interno per confrontare due prodotti assicurativi voce per voce.
 Disponibile online su [confronto-polizze.vercel.app](https://confronto-polizze.vercel.app).
 
